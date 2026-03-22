@@ -16,16 +16,59 @@ import (
 )
 
 func main() {
-	common.InitLogger()
+	cfg, meta, err := config.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "не удалось загрузить конфиг: %v\n", err)
+		os.Exit(1)
+	}
+
+	common.InitLogger(common.LoggerConfig{
+		Level:      cfg.Logger.Level,
+		File:       cfg.Logger.File,
+		MaxSize:    cfg.Logger.MaxSize,
+		MaxBackups: cfg.Logger.MaxBackups,
+		MaxAge:     cfg.Logger.MaxAge,
+		TimeZone:   cfg.TimeZone,
+	})
 	defer common.Sync()
 
-	cfg, err := config.LoadConfig()
-	if err != nil {
+	if common.Logger != nil {
+		fields := []zap.Field{
+			zap.String("host", cfg.Host),
+			zap.String("port", cfg.Port),
+		}
+
+		if meta != nil {
+			fields = append(fields,
+				zap.String("config_source", meta.ConfigSource),
+				zap.String("config_priority", meta.Priority),
+				zap.Bool("env_file_loaded", meta.EnvFileLoaded),
+			)
+
+			if meta.FallbackReason != "" {
+				fields = append(fields, zap.String("fallback_reason", meta.FallbackReason))
+			}
+		}
+
+		if meta != nil && !meta.EnvFileLoaded {
+			common.Logger.Warn(".env не загружен, приложение работает на переменных окружения и значениях по умолчанию", fields...)
+		} else {
+			common.Logger.Info("конфиг успешно загружен", fields...)
+		}
+	}
+
+	if _, err := common.InitDB(cfg); err != nil {
 		if common.Logger != nil {
-			common.Logger.Fatal("не удалось загрузить конфиг", zap.Error(err))
+			common.Logger.Fatal("не удалось подключиться к базе данных", zap.Error(err))
 		}
 		os.Exit(1)
 	}
+
+	defer func() {
+		if err := common.CloseDB(); err != nil && common.Logger != nil {
+			common.Logger.Error("ошибка при закрытии соединения с базой данных", zap.Error(err))
+		}
+	}()
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())

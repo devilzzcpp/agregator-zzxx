@@ -2,7 +2,6 @@ package common
 
 import (
 	"os"
-	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -10,78 +9,56 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+type LoggerConfig struct {
+	Level      string
+	File       string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
+	TimeZone   string
+}
+
 var Logger *zap.Logger
 
 // инициализирует zap с ротацией через lumberjack.
-func InitLogger() {
-	//todo сделать единный забор конфига для логгер
-	logLevel := os.Getenv("LOG_LEVEL")
-	logFile := os.Getenv("LOG_FILE")
-	sizeStr := os.Getenv("LOG_MAX_SIZE")
-	backupsStr := os.Getenv("LOG_MAX_BACKUPS")
-	ageStr := os.Getenv("LOG_MAX_AGE")
-	tzName := os.Getenv("APP_TIMEZONE")
-
-	if sizeStr == "" {
-		sizeStr = os.Getenv("LOG_SIZE")
+func InitLogger(cfg LoggerConfig) {
+	if cfg.Level == "" {
+		cfg.Level = "info"
 	}
-	if backupsStr == "" {
-		backupsStr = os.Getenv("LOG_BACKUP")
+	if cfg.File == "" {
+		cfg.File = "./storage/logs/app.log"
 	}
-	if ageStr == "" {
-		ageStr = os.Getenv("LOG_AGE")
+	if cfg.MaxSize <= 0 {
+		cfg.MaxSize = 50
 	}
-
-	if logLevel == "" {
-		logLevel = "info"
+	if cfg.MaxBackups <= 0 {
+		cfg.MaxBackups = 5
 	}
-	if logFile == "" {
-		logFile = "./storage/logs/app.log"
+	if cfg.MaxAge <= 0 {
+		cfg.MaxAge = 30
 	}
-	if sizeStr == "" {
-		sizeStr = "50"
-	}
-	if backupsStr == "" {
-		backupsStr = "5"
-	}
-	if ageStr == "" {
-		ageStr = "30"
-	}
-	if tzName == "" {
-		tzName = "Europe/Samara"
+	if cfg.TimeZone == "" {
+		cfg.TimeZone = "Europe/Samara"
 	}
 
-	loc, err := time.LoadLocation(tzName)
+	loc, err := time.LoadLocation(cfg.TimeZone)
 	if err != nil {
 		loc = time.FixedZone("UTC+4", 4*60*60)
 	}
 
-	Size, err := strconv.Atoi(sizeStr)
-	if err != nil {
-		Size = 50
-	}
-	Backups, err := strconv.Atoi(backupsStr)
-	if err != nil {
-		Backups = 5
-	}
-	Age, err := strconv.Atoi(ageStr)
-	if err != nil {
-		Age = 30
-	}
-
 	//уровень логирования
 	level := zapcore.InfoLevel
-	if err := level.UnmarshalText([]byte(logLevel)); err != nil {
+	if err := level.UnmarshalText([]byte(cfg.Level)); err != nil {
 		level = zapcore.InfoLevel
 	}
 
 	//ротация логов через lumberjack
 	fileWriter := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   logFile,
-		MaxSize:    Size,    // мегабайт до ротации
-		MaxBackups: Backups, // сколько старых файлов хранить
-		MaxAge:     Age,     // дней
-		Compress:   true,    // gzip старые логи
+		Filename:   cfg.File,
+		MaxSize:    cfg.MaxSize,    // мегабайт до ротации
+		MaxBackups: cfg.MaxBackups, // сколько старых файлов хранить
+		MaxAge:     cfg.MaxAge,     // дней
+		Compress:   true,           // gzip старые логи
 	})
 
 	consoleWriter := zapcore.AddSync(os.Stdout)

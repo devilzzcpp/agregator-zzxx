@@ -3,10 +3,23 @@ package config
 import (
 	"fmt"
 
-	"github.com/devilzzcpp/agregator-zzxx/common"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 )
+
+type LoggerConfig struct {
+	Level      string
+	File       string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
+}
+
+type LoadMeta struct {
+	EnvFileLoaded  bool
+	ConfigSource   string
+	FallbackReason string
+	Priority       string
+}
 
 type Config struct {
 	//сервер
@@ -22,6 +35,7 @@ type Config struct {
 	DBSSLMode  string
 
 	TimeZone string
+	Logger   LoggerConfig
 }
 
 // DSN собирает строку подключения к postgreSQL для GORM
@@ -42,22 +56,35 @@ func setDefaults() {
 	viper.SetDefault("DB_PORT", "5432")
 	viper.SetDefault("DB_SSLMODE", "disable")
 
+	viper.SetDefault("LOG_LEVEL", "info")
+	viper.SetDefault("LOG_FILE", "./storage/logs/app.log")
+	viper.SetDefault("LOG_SIZE", 50)
+	viper.SetDefault("LOG_BACKUP", 5)
+	viper.SetDefault("LOG_AGE", 30)
+
 	viper.SetDefault("APP_TIMEZONE", "Europe/Samara")
 }
 
-func LoadConfig() (*Config, error) {
+func LoadConfig() (*Config, *LoadMeta, error) {
 	setDefaults()
 
 	viper.SetConfigFile(".env")
 	viper.SetConfigType("env")
 	viper.AutomaticEnv()
 
-	usedDefaults := false
+	meta := &LoadMeta{
+		EnvFileLoaded: false,
+		ConfigSource:  "переменные окружения и значения по умолчанию",
+		Priority:      "переменные окружения переопределяют значения по умолчанию",
+	}
+
 	if err := viper.ReadInConfig(); err != nil {
-		usedDefaults = true
-		if common.Logger != nil {
-			common.Logger.Warn(".env не прочитан, используется env + значения по умолчанию", zap.Error(err))
-		}
+		meta.FallbackReason = err.Error()
+	} else {
+		meta.EnvFileLoaded = true
+		meta.ConfigSource = "файл .env, переменные окружения и значения по умолчанию"
+		meta.Priority = "переменные окружения переопределяют значения .env, значения .env переопределяют значения по умолчанию"
+	
 	}
 
 	cfg := &Config{
@@ -72,25 +99,19 @@ func LoadConfig() (*Config, error) {
 		DBSSLMode:  viper.GetString("DB_SSLMODE"),
 
 		TimeZone: viper.GetString("APP_TIMEZONE"),
+		Logger: LoggerConfig{
+			Level:      viper.GetString("LOG_LEVEL"),
+			File:       viper.GetString("LOG_FILE"),
+			MaxSize:    viper.GetInt("LOG_SIZE"),
+			MaxBackups: viper.GetInt("LOG_BACKUP"),
+			MaxAge:     viper.GetInt("LOG_AGE"),
+		},
 	}
 
 	if cfg.DBUser == "" || cfg.DBName == "" {
-		err := fmt.Errorf("config: обязательные поля DB_USER и DB_NAME должны быть заданы")
-		if common.Logger != nil {
-			common.Logger.Error("конфигурация невалидна", zap.Error(err))
-		}
-		return nil, err
+		return nil, meta, fmt.Errorf("config: обязательные поля DB_USER и DB_NAME должны быть заданы")
 	}
 
 	Cfg = cfg
-
-	if common.Logger != nil {
-		if usedDefaults {
-			common.Logger.Info("конфиг загружен с fallback-значениями", zap.String("host", cfg.Host), zap.String("port", cfg.Port))
-		} else {
-			common.Logger.Info("конфиг успешно загружен из .env", zap.String("host", cfg.Host), zap.String("port", cfg.Port))
-		}
-	}
-
-	return cfg, nil
+	return cfg, meta, nil
 }
