@@ -11,7 +11,7 @@ import (
 
 	"github.com/devilzzcpp/agregator-zzxx/common"
 	"github.com/devilzzcpp/agregator-zzxx/config"
-	"github.com/gin-gonic/gin"
+	"github.com/devilzzcpp/agregator-zzxx/internal/app"
 	"go.uber.org/zap"
 )
 
@@ -57,7 +57,8 @@ func main() {
 		}
 	}
 
-	if _, err := common.InitDB(cfg); err != nil {
+	db, err := common.InitDB(cfg)
+	if err != nil {
 		if common.Logger != nil {
 			common.Logger.Fatal("не удалось подключиться к базе данных", zap.Error(err))
 		}
@@ -70,14 +71,7 @@ func main() {
 		}
 	}()
 
-	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
-
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	r := app.NewRouter(db)
 
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 
