@@ -1,16 +1,23 @@
+// @title           Subscription Aggregator API
+// @version         1.0
+// @description     REST-сервис агрегации онлайн-подписок пользователей
+
 package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/devilzzcpp/agregator-zzxx/common"
 	"github.com/devilzzcpp/agregator-zzxx/config"
+	_ "github.com/devilzzcpp/agregator-zzxx/docs"
 	"github.com/devilzzcpp/agregator-zzxx/internal/app"
 	"go.uber.org/zap"
 )
@@ -73,11 +80,36 @@ func main() {
 
 	r := app.NewRouter(db)
 
+	protectedHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.HasPrefix(req.URL.Path, "/swagger") {
+			auth := req.Header.Get("Authorization")
+			if auth == "" || !strings.HasPrefix(auth, "Basic ") {
+				w.Header().Set("WWW-Authenticate", `Basic realm="Swagger UI"`)
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			payload, err := base64.StdEncoding.DecodeString(auth[6:])
+			if err != nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			parts := strings.SplitN(string(payload), ":", 2)
+			if len(parts) != 2 || parts[0] != cfg.SwaggerLogin || parts[1] != cfg.SwaggerPassword {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		r.ServeHTTP(w, req)
+	})
+
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           r,
+		Handler:           protectedHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

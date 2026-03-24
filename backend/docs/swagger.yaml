@@ -1,0 +1,315 @@
+basePath: /api/v1
+definitions:
+  common.ErrorResponse:
+    properties:
+      message:
+        example: Запись не найдена
+        type: string
+    type: object
+  common.ValidationErrorFieldsDoc:
+    properties:
+      end_date:
+        example: ожидается формат MM-YYYY или null
+        type: string
+      from:
+        example: поле обязательно
+        type: string
+      price:
+        example: должен быть числом
+        type: string
+      request:
+        example: некорректные входные данные
+        type: string
+      service_name:
+        example: поле обязательно
+        type: string
+      start_date:
+        example: ожидается формат MM-YYYY
+        type: string
+      to:
+        example: поле обязательно
+        type: string
+      user_id:
+        example: должен быть UUID
+        type: string
+    type: object
+  common.ValidationErrorResponseDoc:
+    properties:
+      errors:
+        $ref: '#/definitions/common.ValidationErrorFieldsDoc'
+      message:
+        example: Ошибка валидации
+        type: string
+    type: object
+  subscription.CreateSubscriptionRequest:
+    properties:
+      end_date:
+        type: string
+      price:
+        type: integer
+      service_name:
+        type: string
+      start_date:
+        type: string
+      user_id:
+        type: string
+    required:
+    - price
+    - service_name
+    - start_date
+    - user_id
+    type: object
+  subscription.SubscriptionResponse:
+    properties:
+      created_at:
+        type: string
+      end_date:
+        type: string
+      id:
+        type: string
+      price:
+        type: integer
+      service_name:
+        type: string
+      start_date:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  subscription.SubscriptionsTotalResponse:
+    properties:
+      currency:
+        type: string
+      from:
+        type: string
+      months:
+        type: integer
+      to:
+        type: string
+      total_price:
+        type: integer
+    type: object
+  subscription.UpdateSubscriptionRequest:
+    properties:
+      end_date:
+        type: string
+      price:
+        type: integer
+      service_name:
+        type: string
+      start_date:
+        type: string
+      user_id:
+        type: string
+    type: object
+host: localhost:8010
+info:
+  contact: {}
+  description: REST-сервис агрегации онлайн-подписок пользователей
+  title: Subscription Aggregator API
+  version: "1.0"
+paths:
+  /subscriptions:
+    get:
+      parameters:
+      - description: UUID пользователя
+        in: query
+        name: user_id
+        type: string
+      - description: Название сервиса
+        in: query
+        name: service_name
+        type: string
+      - description: Лимит (по умолчанию без ограничений)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/subscription.SubscriptionResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+      summary: Список подписок
+      tags:
+      - subscriptions
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные подписки
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/subscription.CreateSubscriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/subscription.SubscriptionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/common.ValidationErrorResponseDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+      summary: Создать подписку
+      tags:
+      - subscriptions
+  /subscriptions/{id}:
+    delete:
+      parameters:
+      - description: UUID подписки
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+      summary: Удалить подписку
+      tags:
+      - subscriptions
+    get:
+      parameters:
+      - description: UUID подписки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/subscription.SubscriptionResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+      summary: Получить подписку по ID
+      tags:
+      - subscriptions
+    put:
+      consumes:
+      - application/json
+      description: Все поля опциональны. end_date можно передать как null для сброса.
+      parameters:
+      - description: UUID подписки
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Обновляемые поля
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/subscription.UpdateSubscriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/subscription.SubscriptionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/common.ValidationErrorResponseDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+      summary: Обновить подписку (частичное обновление)
+      tags:
+      - subscriptions
+  /subscriptions/total:
+    get:
+      description: 'Считает помесячно: каждый активный месяц прибавляет price. Границы
+        включительны.'
+      parameters:
+      - description: Начало периода, формат MM-YYYY
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Конец периода, формат MM-YYYY
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: Фильтр по UUID пользователя
+        in: query
+        name: user_id
+        type: string
+      - description: Фильтр по названию сервиса
+        in: query
+        name: service_name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/subscription.SubscriptionsTotalResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/common.ErrorResponse'
+      summary: Суммарная стоимость подписок за период
+      tags:
+      - subscriptions
+swagger: "2.0"

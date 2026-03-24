@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("subscription not found")
-	ErrInvalidDate = errors.New("invalid date format, expected MM-YYYY")
-	ErrBadRequest  = errors.New("invalid input")
-	ErrConflict    = errors.New("subscription period conflict")
+	ErrNotFound    = errors.New("подписка не найдена")
+	ErrInvalidDate = errors.New("неверный формат даты, ожидается MM-YYYY")
+	ErrBadRequest  = errors.New("некорректные входные данные")
+	ErrConflict    = errors.New("конфликт периода подписки")
 )
 
 const dateLayout = "01-2006"
@@ -55,7 +55,7 @@ func modelToResponse(sub *models.Subscription) *SubscriptionResponse {
 
 func (s *Service) Create(ctx context.Context, req CreateSubscriptionRequest) (*SubscriptionResponse, error) {
 	if req.Price <= 0 {
-		return nil, fmt.Errorf("%w: price must be greater than 0", ErrBadRequest)
+		return nil, fmt.Errorf("%w: price должен быть больше 0", ErrBadRequest)
 	}
 
 	startDate, err := parseMonth(req.StartDate)
@@ -77,7 +77,7 @@ func (s *Service) Create(ctx context.Context, req CreateSubscriptionRequest) (*S
 			return nil, err
 		}
 		if endDate.Before(startDate) {
-			return nil, fmt.Errorf("%w: end_date must not be before start_date", ErrBadRequest)
+			return nil, fmt.Errorf("%w: end_date не может быть раньше start_date", ErrBadRequest)
 		}
 		sub.EndDate = &endDate
 	}
@@ -87,7 +87,7 @@ func (s *Service) Create(ctx context.Context, req CreateSubscriptionRequest) (*S
 		return nil, err
 	}
 	if overlap {
-		return nil, fmt.Errorf("%w: service already exists for user in this period", ErrConflict)
+		return nil, fmt.Errorf("%w: сервис уже существует для пользователя в этом периоде", ErrConflict)
 	}
 
 	created, err := s.repo.Create(ctx, sub)
@@ -136,7 +136,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 	}
 	if req.Price != nil {
 		if *req.Price <= 0 {
-			return nil, fmt.Errorf("%w: price must be greater than 0", ErrBadRequest)
+			return nil, fmt.Errorf("%w: price должен быть больше 0", ErrBadRequest)
 		}
 		sub.Price = *req.Price
 	}
@@ -155,7 +155,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 			sub.EndDate = nil
 		} else {
 			if req.EndDate == nil {
-				return nil, fmt.Errorf("%w: end_date must be string MM-YYYY or null", ErrBadRequest)
+				return nil, fmt.Errorf("%w: end_date должен быть строкой MM-YYYY или null", ErrBadRequest)
 			}
 			endDate, err := parseMonth(*req.EndDate)
 			if err != nil {
@@ -166,7 +166,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 	}
 
 	if sub.EndDate != nil && sub.EndDate.Before(sub.StartDate) {
-		return nil, fmt.Errorf("%w: end_date must not be before start_date", ErrBadRequest)
+		return nil, fmt.Errorf("%w: end_date не может быть раньше start_date", ErrBadRequest)
 	}
 
 	overlap, err := s.repo.HasPeriodOverlap(ctx, sub.UserID, sub.ServiceName, sub.ID, sub.StartDate, sub.EndDate)
@@ -174,7 +174,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 		return nil, err
 	}
 	if overlap {
-		return nil, fmt.Errorf("%w: service already exists for user in this period", ErrConflict)
+		return nil, fmt.Errorf("%w: сервис уже существует для пользователя в этом периоде", ErrConflict)
 	}
 
 	updated, err := s.repo.Update(ctx, sub)
@@ -206,7 +206,7 @@ func (s *Service) Total(ctx context.Context, userID, serviceName, fromStr, toStr
 		return nil, err
 	}
 	if to.Before(from) {
-		return nil, fmt.Errorf("%w: to must not be before from", ErrBadRequest)
+		return nil, fmt.Errorf("%w: to не может быть раньше from", ErrBadRequest)
 	}
 
 	q := TotalSubscriptionsQuery{

@@ -1,8 +1,11 @@
 package app
 
 import (
+	_ "github.com/devilzzcpp/agregator-zzxx/docs"
 	"github.com/devilzzcpp/agregator-zzxx/internal/subscription"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -14,6 +17,13 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		c.JSON(200, gin.H{"message": "pong"})
 	})
 
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(
+		swaggerFiles.Handler,
+		ginSwagger.URL("/swagger/doc.json"),
+		ginSwagger.DeepLinking(true),
+		ginSwagger.DocExpansion("list"),
+	))
+	
 	v1 := r.Group("/api/v1")
 
 	subscriptionRepository := subscription.NewRepository(db)

@@ -36,6 +36,10 @@ type Config struct {
 
 	TimeZone string
 	Logger   LoggerConfig
+
+	// swagger basic auth
+	SwaggerLogin    string
+	SwaggerPassword string
 }
 
 // DSN собирает строку подключения к postgreSQL для GORM
@@ -84,7 +88,7 @@ func LoadConfig() (*Config, *LoadMeta, error) {
 		meta.EnvFileLoaded = true
 		meta.ConfigSource = "файл .env, переменные окружения и значения по умолчанию"
 		meta.Priority = "переменные окружения переопределяют значения .env, значения .env переопределяют значения по умолчанию"
-	
+
 	}
 
 	cfg := &Config{
@@ -99,6 +103,10 @@ func LoadConfig() (*Config, *LoadMeta, error) {
 		DBSSLMode:  viper.GetString("DB_SSLMODE"),
 
 		TimeZone: viper.GetString("APP_TIMEZONE"),
+
+		SwaggerLogin:    viper.GetString("SVG_LOGIN"),
+		SwaggerPassword: viper.GetString("SVG_PASSWORD"),
+
 		Logger: LoggerConfig{
 			Level:      viper.GetString("LOG_LEVEL"),
 			File:       viper.GetString("LOG_FILE"),
