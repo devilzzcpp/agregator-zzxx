@@ -25,8 +25,8 @@ CREATE INDEX idx_subscriptions_service_name ON subscriptions (service_name);
 CREATE INDEX idx_subscriptions_start_date  ON subscriptions (start_date);
 CREATE INDEX idx_subscriptions_end_date    ON subscriptions (end_date);
 
--- составной индекс: фильтр по user_id + период
-CREATE INDEX idx_subscriptions_user_period  ON subscriptions (user_id, start_date, end_date);
+-- составной индекс для проверки пересечений периодов
+CREATE INDEX idx_subscriptions_overlap ON subscriptions (user_id, service_name, start_date, end_date);
 
 -- +goose Down
 

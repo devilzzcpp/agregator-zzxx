@@ -110,37 +110,33 @@ func (r *Repository) HasPeriodOverlap(
 }
 
 // Total считает суммарную стоимость подписок за период.
-// Для каждого месяца диапазона [q.From, q.To] суммируются цены активных подписок,
-// затем результаты складываются — т.е. подписка за N месяцев считается N раз.
+// Один запрос через GENERATE_SERIES: PostgreSQL разворачивает все месяцы
+// диапазона [from, to] и суммирует price активных в каждом месяце подписок.
 func (r *Repository) Total(ctx context.Context, q TotalSubscriptionsQuery) (int, error) {
-	// Нормализуем на первое число месяца
 	from := time.Date(q.From.Year(), q.From.Month(), 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(q.To.Year(), q.To.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	total := 0
-	current := from
+	query := `
+		SELECT COALESCE(SUM(s.price), 0)
+		FROM generate_series(?::date, ?::date, '1 month'::interval) AS m(month)
+		JOIN subscriptions s
+		  ON s.start_date <= m.month
+		 AND (s.end_date IS NULL OR s.end_date >= m.month)
+		WHERE 1=1`
+	args := []interface{}{from, to}
 
-	for !current.After(to) {
-		var monthTotal int
+	if q.UserID != "" {
+		query += " AND s.user_id = ?"
+		args = append(args, q.UserID)
+	}
+	if q.ServiceName != "" {
+		query += " AND s.service_name = ?"
+		args = append(args, q.ServiceName)
+	}
 
-		dbq := r.db.WithContext(ctx).
-			Model(&models.Subscription{}).
-			Where("start_date <= ? AND (end_date IS NULL OR end_date >= ?)", current, current)
-
-		if q.UserID != "" {
-			dbq = dbq.Where("user_id = ?", q.UserID)
-		}
-		if q.ServiceName != "" {
-			dbq = dbq.Where("service_name = ?", q.ServiceName)
-		}
-
-		result := dbq.Select("COALESCE(SUM(price), 0)").Scan(&monthTotal)
-		if result.Error != nil {
-			return 0, fmt.Errorf("repository: total calculation failed for %s: %w", current.Format("01-2006"), result.Error)
-		}
-
-		total += monthTotal
-		current = current.AddDate(0, 1, 0)
+	var total int
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&total).Error; err != nil {
+		return 0, fmt.Errorf("repository: total calculation failed: %w", err)
 	}
 
 	return total, nil

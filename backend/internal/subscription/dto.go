@@ -21,8 +21,6 @@ type UpdateSubscriptionRequest struct {
 type ListSubscriptionsQuery struct {
 	UserID      string `form:"user_id"`
 	ServiceName string `form:"service_name"`
-	FromMonth   string `form:"from"`
-	ToMonth     string `form:"to"`
 	Limit       int    `form:"limit"`
 	Offset      int    `form:"offset"`
 }
