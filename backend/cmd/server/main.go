@@ -39,6 +39,7 @@ func main() {
 	})
 	defer common.Sync()
 
+	// логируем источник конфигурации
 	if common.Logger != nil {
 		fields := []zap.Field{
 			zap.String("host", cfg.Host),
@@ -51,7 +52,7 @@ func main() {
 				zap.String("config_priority", meta.Priority),
 				zap.Bool("env_file_loaded", meta.EnvFileLoaded),
 			)
-
+			// если была причина fallback, логируем её
 			if meta.FallbackReason != "" {
 				fields = append(fields, zap.String("fallback_reason", meta.FallbackReason))
 			}
@@ -72,6 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// гарантируем закрытие соединения с базой данных при завершении работы приложения
 	defer func() {
 		if err := common.CloseDB(); err != nil && common.Logger != nil {
 			common.Logger.Error("ошибка при закрытии соединения с базой данных", zap.Error(err))
@@ -79,8 +81,11 @@ func main() {
 	}()
 
 	r := app.NewRouter(db)
-
+	
+	// оборачиваем роутер в middleware для защиты Swagger UI базовой аутентификацией
 	protectedHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		
+		// проверяем, если запрос к Swagger UI, то требуем базовую аутентификацию
 		if strings.HasPrefix(req.URL.Path, "/swagger") {
 			auth := req.Header.Get("Authorization")
 			if auth == "" || !strings.HasPrefix(auth, "Basic ") {
@@ -89,19 +94,21 @@ func main() {
 				return
 			}
 
+			// декодируем базовую аутентификацию и проверяем логин/пароль
 			payload, err := base64.StdEncoding.DecodeString(auth[6:])
 			if err != nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
+			// проверяем логин и пароль
 			parts := strings.SplitN(string(payload), ":", 2)
 			if len(parts) != 2 || parts[0] != cfg.SwaggerLogin || parts[1] != cfg.SwaggerPassword {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 		}
-
+		
 		r.ServeHTTP(w, req)
 	})
 
@@ -117,6 +124,7 @@ func main() {
 		common.Logger.Info("сервер запускается", zap.String("addr", addr))
 	}
 
+	// запускаем сервер в отдельной горутине, чтобы не блокировать основной поток для graceful shutdown
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			if common.Logger != nil {
@@ -124,15 +132,17 @@ func main() {
 			}
 		}
 	}()
-
+	
+	// ждем сигнала остановки (например, Ctrl+C) и выполняем graceful shutdown
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM) // ловим сигналы остановки
 	<-quit
 
 	if common.Logger != nil {
 		common.Logger.Info("получен сигнал остановки, завершаем сервер")
 	}
 
+	// создаем контекст с таймаутом для graceful shutdown, чтобы не ждать бесконечно
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

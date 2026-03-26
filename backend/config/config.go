@@ -76,14 +76,15 @@ func LoadConfig() (*Config, *LoadMeta, error) {
 	viper.SetConfigType("env")
 	viper.AutomaticEnv()
 
+	// загружаем конфиг и собираем метаинформацию о процессе загрузки
 	meta := &LoadMeta{
 		EnvFileLoaded: false,
-		ConfigSource:  "переменные окружения и значения по умолчанию",
+		ConfigSource:  "переменные окружения и значения по умолчанию", 
 		Priority:      "переменные окружения переопределяют значения по умолчанию",
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		meta.FallbackReason = err.Error()
+		meta.FallbackReason = err.Error() // сохраняем причину, по которой не удалось загрузить .env
 	} else {
 		meta.EnvFileLoaded = true
 		meta.ConfigSource = "файл .env, переменные окружения и значения по умолчанию"

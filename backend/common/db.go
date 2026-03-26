@@ -21,7 +21,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("db: config is nil")
 	}
 
-	dsn := cfg.DSN()
+	dsn := cfg.DSN() // строка DSN для подключения к базе данных
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: buildGormLogger(cfg.Logger.Level),
@@ -35,7 +35,9 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("db: failed to get sql.DB: %w", err)
 	}
 
-	configureConnectionPool(sqlDB)
+	configureConnectionPool(sqlDB) // настраиваем пул соединений для оптимальной работы с PostgreSQL
+
+	// проверяем соединение с базой данных, выполняя Ping
 
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("db: ping failed: %w", err)
@@ -54,6 +56,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
+// configureConnectionPool настраивает параметры пула соединений для sql.DB
 func configureConnectionPool(sqlDB *sql.DB) {
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(25)
@@ -61,6 +64,7 @@ func configureConnectionPool(sqlDB *sql.DB) {
 	sqlDB.SetConnMaxIdleTime(15 * time.Minute)
 }
 
+// buildGormLogger создает адаптер для логгера GORM на основе уровня логирования приложения
 func buildGormLogger(appLogLevel string) gormlogger.Interface {
 	level := gormlogger.Warn
 
@@ -76,11 +80,13 @@ func buildGormLogger(appLogLevel string) gormlogger.Interface {
 	return gormlogger.Default.LogMode(level)
 }
 
+// CloseDB закрывает соединение с базой данных, если оно открыто, и логирует результат
 func CloseDB() error {
 	if DB == nil {
 		return nil
 	}
 
+	// получаем sql.DB из GORM для закрытия соединения
 	sqlDB, err := DB.DB()
 	if err != nil {
 		return fmt.Errorf("db: failed to get sql.DB for close: %w", err)

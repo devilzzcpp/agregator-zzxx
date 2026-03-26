@@ -18,7 +18,7 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 func (r *Repository) Create(ctx context.Context, sub *models.Subscription) (*models.Subscription, error) {
-	result := r.db.WithContext(ctx).Create(sub)
+	result := r.db.WithContext(ctx).Create(sub) // сохраняем новую подписку в базе данных
 	if result.Error != nil {
 		return nil, fmt.Errorf("repository: create subscription failed: %w", result.Error)
 	}
@@ -28,7 +28,7 @@ func (r *Repository) Create(ctx context.Context, sub *models.Subscription) (*mod
 
 func (r *Repository) GetByID(ctx context.Context, id string) (*models.Subscription, error) {
 	var sub models.Subscription
-	result := r.db.WithContext(ctx).First(&sub, "id = ?", id)
+	result := r.db.WithContext(ctx).First(&sub, "id = ?", id) // ищем подписку по ID
 	if result.Error != nil {
 		return nil, fmt.Errorf("repository: get subscription failed: %w", result.Error)
 	}
@@ -40,6 +40,7 @@ func (r *Repository) List(ctx context.Context, q ListSubscriptionsQuery) ([]mode
 	var subs []models.Subscription
 	query := r.db.WithContext(ctx).Model(&models.Subscription{})
 
+	// применяем фильтры из запроса: user_id, service_name, limit и offset для пагинации
 	if q.UserID != "" {
 		query = query.Where("user_id = ?", q.UserID)
 	}
@@ -53,7 +54,7 @@ func (r *Repository) List(ctx context.Context, q ListSubscriptionsQuery) ([]mode
 		query = query.Offset(q.Offset)
 	}
 
-	result := query.Find(&subs)
+	result := query.Find(&subs) // выполняем запрос к базе данных для получения списка подписок
 	if result.Error != nil {
 		return nil, fmt.Errorf("repository: list subscriptions failed: %w", result.Error)
 	}
@@ -62,7 +63,7 @@ func (r *Repository) List(ctx context.Context, q ListSubscriptionsQuery) ([]mode
 }
 
 func (r *Repository) Update(ctx context.Context, sub *models.Subscription) (*models.Subscription, error) {
-	result := r.db.WithContext(ctx).Save(sub)
+	result := r.db.WithContext(ctx).Save(sub) // сохраняем обновленную подписку в базе данных
 	if result.Error != nil {
 		return nil, fmt.Errorf("repository: update subscription failed: %w", result.Error)
 	}
@@ -87,20 +88,23 @@ func (r *Repository) HasPeriodOverlap(
 	startDate time.Time,
 	endDate *time.Time,
 ) (bool, error) {
+	// формируем запрос для проверки пересечения периодов: ищем записи с таким же user_id и service_name, у которых периоды пересекаются
 	query := r.db.WithContext(ctx).
 		Model(&models.Subscription{}).
 		Where("user_id = ? AND service_name = ?", userID, serviceName)
 
 	if excludeID != "" {
-		query = query.Where("id <> ?", excludeID)
+		query = query.Where("id <> ?", excludeID) // исключаем текущую запись при update
 	}
 
+	// условие для проверки пересечения
 	query = query.Where(
 		"start_date <= COALESCE(?, DATE '9999-12-31') AND ? <= COALESCE(end_date, DATE '9999-12-31')",
 		endDate,
 		startDate,
 	)
 
+	// выполняем запрос и считаем количество записей, которые пересекаются
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
 		return false, fmt.Errorf("repository: overlap check failed: %w", err)
@@ -113,9 +117,10 @@ func (r *Repository) HasPeriodOverlap(
 // Один запрос через GENERATE_SERIES: PostgreSQL разворачивает все месяцы
 // диапазона [from, to] и суммирует price активных в каждом месяце подписок.
 func (r *Repository) Total(ctx context.Context, q TotalSubscriptionsQuery) (int, error) {
-	from := time.Date(q.From.Year(), q.From.Month(), 1, 0, 0, 0, 0, time.UTC)
+	from := time.Date(q.From.Year(), q.From.Month(), 1, 0, 0, 0, 0, time.UTC) // приводим from к первому дню месяца
 	to := time.Date(q.To.Year(), q.To.Month(), 1, 0, 0, 0, 0, time.UTC)
-
+	
+	// формируем SQL-запрос с динамическими фильтрами по user_id и service_name
 	query := `
 		SELECT COALESCE(SUM(s.price), 0)
 		FROM generate_series(?::date, ?::date, '1 month'::interval) AS m(month)
@@ -125,6 +130,7 @@ func (r *Repository) Total(ctx context.Context, q TotalSubscriptionsQuery) (int,
 		WHERE 1=1`
 	args := []interface{}{from, to}
 
+	// добавляем фильтры по user_id и service_name, если они указаны в запросе
 	if q.UserID != "" {
 		query += " AND s.user_id = ?"
 		args = append(args, q.UserID)

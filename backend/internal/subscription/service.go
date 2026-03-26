@@ -28,6 +28,7 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
+// parseMonth парсит строку в формате MM-YYYY в time.Time, устанавливая день в 1 и время в полночь
 func parseMonth(s string) (time.Time, error) {
 	t, err := time.Parse(dateLayout, s)
 	if err != nil {
@@ -36,6 +37,7 @@ func parseMonth(s string) (time.Time, error) {
 	return t, nil
 }
 
+// modelToResponse преобразует модель Subscription в SubscriptionResponse для отправки клиенту
 func modelToResponse(sub *models.Subscription) *SubscriptionResponse {
 	resp := &SubscriptionResponse{
 		ID:          sub.ID,
@@ -81,7 +83,7 @@ func (s *Service) Create(ctx context.Context, req CreateSubscriptionRequest) (*S
 		}
 		sub.EndDate = &endDate
 	}
-
+	// проверяем пересечение периодов для данного user_id + service_name
 	overlap, err := s.repo.HasPeriodOverlap(ctx, sub.UserID, sub.ServiceName, "", sub.StartDate, sub.EndDate)
 	if err != nil {
 		return nil, err
@@ -130,7 +132,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 		}
 		return nil, err
 	}
-
+	
 	if req.ServiceName != nil {
 		sub.ServiceName = *req.ServiceName
 	}
@@ -150,7 +152,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 		}
 		sub.StartDate = startDate
 	}
-	if endDateProvided {
+	if endDateProvided { // если end_date присутствует в запросе, даже если он null
 		if endDateSetToNull {
 			sub.EndDate = nil
 		} else {
@@ -168,7 +170,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpdateSubscriptionR
 	if sub.EndDate != nil && sub.EndDate.Before(sub.StartDate) {
 		return nil, fmt.Errorf("%w: end_date не может быть раньше start_date", ErrBadRequest)
 	}
-
+	//проверяем пересечения
 	overlap, err := s.repo.HasPeriodOverlap(ctx, sub.UserID, sub.ServiceName, sub.ID, sub.StartDate, sub.EndDate)
 	if err != nil {
 		return nil, err
@@ -220,7 +222,8 @@ func (s *Service) Total(ctx context.Context, userID, serviceName, fromStr, toStr
 	if err != nil {
 		return nil, err
 	}
-
+	
+	// считаем количество месяцев в диапазоне от from до to включительно
 	months := 0
 	current := from
 	for !current.After(to) {
